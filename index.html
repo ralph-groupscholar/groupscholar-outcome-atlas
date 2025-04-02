@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Outcome Atlas · Group Scholar</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Group Scholar · Outcome Atlas</p>
+          <h1>Track outcomes with evidence, momentum, and narrative clarity.</h1>
+          <p class="lede">
+            Outcome Atlas is a lightweight evidence ledger for scholarship programs. Capture impact
+            signals, link proof, and keep the story of progress visible for leadership, partners, and
+            scholars.
+          </p>
+          <div class="hero-actions">
+            <button class="primary" id="seed-demo">Load demo atlas</button>
+            <button class="ghost" id="export-json">Export JSON</button>
+          </div>
+        </div>
+        <div class="hero-card">
+          <h2>Atlas pulse</h2>
+          <div class="stats">
+            <div>
+              <p class="stat-label">Outcomes tracked</p>
+              <p class="stat-value" id="stat-total">0</p>
+            </div>
+            <div>
+              <p class="stat-label">On track</p>
+              <p class="stat-value" id="stat-on-track">0</p>
+            </div>
+            <div>
+              <p class="stat-label">Needs lift</p>
+              <p class="stat-value" id="stat-attention">0</p>
+            </div>
+          </div>
+          <div class="pulse-meter" id="pulse-meter"></div>
+          <p class="muted">Evidence confidence is a weighted blend of proof freshness and strength.</p>
+        </div>
+      </header>
+
+      <section class="controls">
+        <div class="control">
+          <label for="search">Search</label>
+          <input id="search" type="text" placeholder="Search outcomes, owners, metrics" />
+        </div>
+        <div class="control">
+          <label for="filter-category">Category</label>
+          <select id="filter-category">
+            <option value="all">All</option>
+            <option value="Access">Access</option>
+            <option value="Retention">Retention</option>
+            <option value="Career">Career</option>
+            <option value="Wellbeing">Wellbeing</option>
+            <option value="Community">Community</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="filter-status">Status</label>
+          <select id="filter-status">
+            <option value="all">All</option>
+            <option value="On Track">On Track</option>
+            <option value="Watching">Watching</option>
+            <option value="Needs Lift">Needs Lift</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="sort-by">Sort</label>
+          <select id="sort-by">
+            <option value="recent">Most recent</option>
+            <option value="confidence">Highest confidence</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="panel health">
+        <div class="health-header">
+          <div>
+            <h2>Evidence health</h2>
+            <p class="muted">Spot proof gaps and refresh outcomes before leadership updates.</p>
+          </div>
+          <div class="health-note muted">Based on the current filters.</div>
+        </div>
+        <div class="health-stats">
+          <div class="health-card">
+            <p class="stat-label">Evidence linked</p>
+            <p class="stat-value" id="stat-evidence-linked">0</p>
+            <p class="muted" id="stat-evidence-rate">0% coverage</p>
+          </div>
+          <div class="health-card">
+            <p class="stat-label">Stale updates</p>
+            <p class="stat-value" id="stat-stale">0</p>
+            <p class="muted">Older than 30 days</p>
+          </div>
+          <div class="health-card">
+            <p class="stat-label">Low confidence</p>
+            <p class="stat-value" id="stat-low-confidence">0</p>
+            <p class="muted">Below 70%</p>
+          </div>
+        </div>
+        <div class="action-queue">
+          <div>
+            <h3>Action queue</h3>
+            <p class="muted">Use this list for weekly evidence follow-ups.</p>
+          </div>
+          <ul class="action-list" id="action-list"></ul>
+        </div>
+      </section>
+
+      <section class="panel cadence">
+        <div class="cadence-header">
+          <div>
+            <h2>Evidence cadence plan</h2>
+            <p class="muted">Line up next proof check-ins based on status and evidence strength.</p>
+          </div>
+          <div class="health-note muted">Due dates use the latest update on record.</div>
+        </div>
+        <div class="cadence-stats">
+          <div class="cadence-card">
+            <p class="stat-label">Overdue</p>
+            <p class="stat-value" id="cadence-overdue">0</p>
+            <p class="muted">Need immediate refresh</p>
+          </div>
+          <div class="cadence-card">
+            <p class="stat-label">Next 7 days</p>
+            <p class="stat-value" id="cadence-week">0</p>
+            <p class="muted">Upcoming check-ins</p>
+          </div>
+          <div class="cadence-card">
+            <p class="stat-label">Next 30 days</p>
+            <p class="stat-value" id="cadence-month">0</p>
+            <p class="muted">Near-term refreshes</p>
+          </div>
+        </div>
+        <ul class="cadence-list" id="cadence-list"></ul>
+      </section>
+
+      <section class="grid">
+        <div class="panel">
+          <h2>Outcome portfolio</h2>
+          <p class="muted">Keep outcomes scannable, each tied to a measurable signal and proof.</p>
+          <div class="outcome-list" id="outcome-list"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Add outcome</h2>
+          <p class="muted">Capture new impact signals as they appear. Evidence links can be internal docs.</p>
+          <form id="outcome-form">
+            <div class="form-row">
+              <label for="title">Outcome title</label>
+              <input id="title" required placeholder="Scholar retention up 12% YoY" />
+            </div>
+            <div class="form-row two">
+              <div>
+                <label for="category">Category</label>
+                <select id="category" required>
+                  <option value="Access">Access</option>
+                  <option value="Retention">Retention</option>
+                  <option value="Career">Career</option>
+                  <option value="Wellbeing">Wellbeing</option>
+                  <option value="Community">Community</option>
+                </select>
+              </div>
+              <div>
+                <label for="status">Status</label>
+                <select id="status" required>
+                  <option value="On Track">On Track</option>
+                  <option value="Watching">Watching</option>
+                  <option value="Needs Lift">Needs Lift</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row two">
+              <div>
+                <label for="metric">Metric signal</label>
+                <input id="metric" required placeholder="Retention rate, term over term" />
+              </div>
+              <div>
+                <label for="owner">Owner</label>
+                <input id="owner" required placeholder="Program Ops" />
+              </div>
+            </div>
+            <div class="form-row two">
+              <div>
+                <label for="confidence">Evidence confidence</label>
+                <input id="confidence" type="range" min="40" max="100" value="76" />
+              </div>
+              <div>
+                <label for="date">Last updated</label>
+                <input id="date" type="date" required />
+              </div>
+            </div>
+            <div class="form-row">
+              <label for="evidence">Evidence link</label>
+              <input id="evidence" placeholder="https://..." />
+            </div>
+            <div class="form-row">
+              <label for="story">Narrative note</label>
+              <textarea id="story" rows="3" placeholder="What changed, why it matters, next signal"></textarea>
+            </div>
+            <button class="primary" type="submit">Add outcome</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel timeline">
+        <div>
+          <h2>Evidence timeline</h2>
+          <p class="muted">Track recency so outcomes stay alive in leadership briefings.</p>
+        </div>
+        <div class="timeline-list" id="timeline"></div>
+      </section>
+
+      <section class="panel brief">
+        <div class="brief-header">
+          <div>
+            <h2>Leadership brief</h2>
+            <p class="muted">Generate a scannable summary for weekly updates and partner check-ins.</p>
+          </div>
+          <div class="brief-actions">
+            <button class="ghost" id="generate-brief">Refresh brief</button>
+            <button class="primary" id="copy-brief">Copy brief</button>
+          </div>
+        </div>
+        <textarea id="brief-output" rows="10" readonly></textarea>
+        <p class="muted" id="brief-meta">0 outcomes in view · updated now</p>
+      </section>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
