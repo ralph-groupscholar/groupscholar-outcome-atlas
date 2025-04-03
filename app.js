@@ -1,4 +1,5 @@
 const STORAGE_KEY = "gs_outcome_atlas_v1";
+const API_ENDPOINT = "/api/outcomes";
 
 const demoOutcomes = [
   {
@@ -78,9 +79,11 @@ const selectors = {
   briefMeta: document.querySelector("#brief-meta"),
   briefGenerate: document.querySelector("#generate-brief"),
   briefCopy: document.querySelector("#copy-brief"),
+  syncStatus: document.querySelector("#sync-status"),
 };
 
-let outcomes = loadOutcomes();
+let outcomes = [];
+let remoteAvailable = false;
 
 function setDefaultDate() {
   const today = new Date().toISOString().split("T")[0];
@@ -90,7 +93,7 @@ function setDefaultDate() {
   }
 }
 
-function loadOutcomes() {
+function loadLocalOutcomes() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) {
     try {
@@ -104,6 +107,99 @@ function loadOutcomes() {
 
 function saveOutcomes() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(outcomes));
+}
+
+function updateSyncStatus(state, detail) {
+  if (!selectors.syncStatus) return;
+  let label = "Local only";
+  if (state === "local") label = "Local only";
+  if (state === "syncing") label = "Syncing";
+  if (state === "live") label = "Cloud sync active";
+  if (state === "error") label = "Sync unavailable";
+  selectors.syncStatus.innerHTML = `Sync: <strong>${label}</strong>${detail ? ` · ${detail}` : ""}`;
+}
+
+async function fetchRemoteOutcomes() {
+  try {
+    updateSyncStatus("syncing");
+    const response = await fetch(API_ENDPOINT, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`Remote fetch failed (${response.status})`);
+    }
+    const payload = await response.json();
+    const items = Array.isArray(payload.outcomes) ? payload.outcomes : [];
+    remoteAvailable = true;
+    updateSyncStatus("live", `${items.length} in cloud`);
+    return items;
+  } catch (error) {
+    remoteAvailable = false;
+    updateSyncStatus("error", "using local cache");
+    return null;
+  }
+}
+
+async function persistOutcome(outcome) {
+  outcomes = [outcome, ...outcomes];
+  saveOutcomes();
+  renderOutcomes();
+
+  if (!remoteAvailable) return;
+
+  try {
+    const response = await fetch(API_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(outcome),
+    });
+    if (!response.ok) {
+      throw new Error(`Remote save failed (${response.status})`);
+    }
+    const payload = await response.json();
+    if (payload.outcome) {
+      outcomes = outcomes.map((item) =>
+        item.id === payload.outcome.id ? payload.outcome : item
+      );
+      saveOutcomes();
+      renderOutcomes();
+    }
+  } catch (error) {
+    remoteAvailable = false;
+    updateSyncStatus("error", "saved locally");
+  }
+}
+
+async function seedDemoOutcomes() {
+  const seeded = demoOutcomes.map((item) => ({
+    ...item,
+    id: crypto.randomUUID(),
+  }));
+
+  if (!remoteAvailable) {
+    outcomes = seeded;
+    saveOutcomes();
+    renderOutcomes();
+    updateSyncStatus("local", "demo loaded");
+    return;
+  }
+
+  for (const outcome of seeded) {
+    await persistOutcome(outcome);
+  }
+  updateSyncStatus("live", "demo synced");
+}
+
+async function initializeOutcomes() {
+  outcomes = loadLocalOutcomes();
+  updateSyncStatus("local", "cached");
+  renderOutcomes();
+  const remoteOutcomes = await fetchRemoteOutcomes();
+  if (remoteOutcomes) {
+    outcomes = remoteOutcomes;
+    saveOutcomes();
+    renderOutcomes();
+  }
 }
 
 function formatDate(value) {
@@ -486,12 +582,10 @@ selectors.form.addEventListener("submit", (event) => {
     story: document.querySelector("#story").value.trim(),
   };
 
-  outcomes = [newOutcome, ...outcomes];
-  saveOutcomes();
+  persistOutcome(newOutcome);
   selectors.form.reset();
   document.querySelector("#confidence").value = 76;
   setDefaultDate();
-  renderOutcomes();
 });
 
 [selectors.search, selectors.filterCategory, selectors.filterStatus, selectors.sortBy].forEach(
@@ -510,10 +604,8 @@ selectors.exportButton.addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
-selectors.seedButton.addEventListener("click", () => {
-  outcomes = demoOutcomes.map((item) => ({ ...item, id: crypto.randomUUID() }));
-  saveOutcomes();
-  renderOutcomes();
+selectors.seedButton.addEventListener("click", async () => {
+  await seedDemoOutcomes();
 });
 
 selectors.briefGenerate.addEventListener("click", () => {
@@ -535,4 +627,4 @@ selectors.briefCopy.addEventListener("click", async () => {
 });
 
 setDefaultDate();
-renderOutcomes();
+initializeOutcomes();

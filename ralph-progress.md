@@ -29,3 +29,19 @@
 - Summarized overdue, week-ahead, and month-ahead refresh counts with a prioritized list.
 - Styled the cadence section to keep upcoming proof work visible alongside the health panel.
 - Redeployed the Outcome Atlas to https://groupscholar-outcome-atlas.vercel.app.
+
+## Iteration 6
+- Added PostgreSQL-backed cloud sync with a Vercel API route for outcomes.
+- Introduced a production seeding script and environment-driven database configuration.
+- Updated the UI with a sync status indicator and documentation for the new backend.
+
+## Iteration 6
+- Synced demo seeding through the cloud API when available and cleaned up the client sync flow.
+- Updated the seed script wiring in package metadata and documentation.
+- Seeded the production database with fresh Outcome Atlas sample data.
+- Attempted a Vercel production deploy but hit the daily deployment limit.
+
+## Iteration 6
+- Added PostgreSQL-backed API for outcomes sync with schema/table setup and cloud sync status.
+- Seeded the production database with six demo outcomes for live data.
+- Updated Outcome Atlas docs and database setup script; Vercel deploy blocked by daily limit.

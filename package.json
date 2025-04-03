@@ -1,0 +1,12 @@
+{
+  "name": "groupscholar-outcome-atlas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Group Scholar Outcome Atlas - outcomes tracking, evidence capture, and storytelling engine",
+  "scripts": {
+    "seed:outcome-atlas": "node scripts/seed-production.js"
+  },
+  "dependencies": {
+    "pg": "^8.11.5"
+  }
+}

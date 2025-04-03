@@ -78,6 +78,18 @@ h3 {
   margin-top: 24px;
 }
 
+.sync-status {
+  margin: 14px 0 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.sync-status strong {
+  color: var(--ink);
+}
+
 button,
 select,
 input,
