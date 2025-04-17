@@ -34,6 +34,7 @@
 - Added PostgreSQL-backed cloud sync with a Vercel API route for outcomes.
 - Introduced a production seeding script and environment-driven database configuration.
 - Updated the UI with a sync status indicator and documentation for the new backend.
+- Deployment attempt failed due to Vercel free-tier daily deployment limit (next attempt needed).
 
 ## Iteration 6
 - Synced demo seeding through the cloud API when available and cleaned up the client sync flow.
@@ -45,3 +46,8 @@
 - Added PostgreSQL-backed API for outcomes sync with schema/table setup and cloud sync status.
 - Seeded the production database with six demo outcomes for live data.
 - Updated Outcome Atlas docs and database setup script; Vercel deploy blocked by daily limit.
+
+## Iteration 7
+- Seeded the production Outcome Atlas database with current demo outcomes after resolving SSL requirements.
+- Documented the environment variable set for the Postgres connection and optional SSL toggle.
+- Attempted a production deploy; Vercel daily deployment limit still in effect.
