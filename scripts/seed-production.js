@@ -1,4 +1,4 @@
-const { Pool } = require("pg");
+const { tableRef, getPool, ensureSchema } = require("../api/lib/db");
 
 const outcomes = [
   {
@@ -51,39 +51,31 @@ const outcomes = [
   },
 ];
 
+function missingEnv() {
+  const required = [
+    "OUTCOME_ATLAS_DB_HOST",
+    "OUTCOME_ATLAS_DB_PORT",
+    "OUTCOME_ATLAS_DB_USER",
+    "OUTCOME_ATLAS_DB_PASSWORD",
+    "OUTCOME_ATLAS_DB_NAME",
+  ];
+  return required.filter((key) => !process.env[key]);
+}
+
 async function run() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is required to seed production data.");
+  const missing = missingEnv();
+  if (missing.length) {
+    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
 
-  const useSsl = process.env.DATABASE_SSL === "true";
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: useSsl ? { rejectUnauthorized: false } : false,
-  });
-
+  const pool = getPool();
   try {
-    await pool.query("CREATE SCHEMA IF NOT EXISTS gs_outcome_atlas;");
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS gs_outcome_atlas.outcomes (
-        id uuid PRIMARY KEY,
-        title text NOT NULL,
-        category text NOT NULL,
-        status text NOT NULL,
-        metric text NOT NULL,
-        owner text NOT NULL,
-        confidence integer NOT NULL,
-        date date,
-        evidence text,
-        story text,
-        created_at timestamptz NOT NULL DEFAULT now()
-      );
-    `);
+    await ensureSchema();
 
     for (const outcome of outcomes) {
       await pool.query(
-        `INSERT INTO gs_outcome_atlas.outcomes
-          (id, title, category, status, metric, owner, confidence, date, evidence, story)
+        `INSERT INTO ${tableRef}
+          (id, title, category, status, metric, owner, confidence, last_updated, evidence, story)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          ON CONFLICT (id)
          DO UPDATE SET
@@ -93,7 +85,7 @@ async function run() {
            metric = EXCLUDED.metric,
            owner = EXCLUDED.owner,
            confidence = EXCLUDED.confidence,
-           date = EXCLUDED.date,
+           last_updated = EXCLUDED.last_updated,
            evidence = EXCLUDED.evidence,
            story = EXCLUDED.story;`,
         [
@@ -111,7 +103,7 @@ async function run() {
       );
     }
 
-    console.log(`Seeded ${outcomes.length} outcomes into gs_outcome_atlas.outcomes.`);
+    console.log(`Seeded ${outcomes.length} outcomes into ${tableRef}.`);
   } finally {
     await pool.end();
   }

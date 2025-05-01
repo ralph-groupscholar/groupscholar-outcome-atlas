@@ -51,3 +51,8 @@
 - Seeded the production Outcome Atlas database with current demo outcomes after resolving SSL requirements.
 - Documented the environment variable set for the Postgres connection and optional SSL toggle.
 - Attempted a production deploy; Vercel daily deployment limit still in effect.
+
+## Iteration 8
+- Aligned the production seed script with the API schema/env configuration and reseeded the Postgres data.
+- Restored Outcome Atlas Vercel env vars to the required OUTCOME_ATLAS_DB_* set after cleanup.
+- Deployment retry blocked by Vercel daily deployment cap (will retry after reset).
