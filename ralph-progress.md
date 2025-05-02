@@ -56,3 +56,18 @@
 - Aligned the production seed script with the API schema/env configuration and reseeded the Postgres data.
 - Restored Outcome Atlas Vercel env vars to the required OUTCOME_ATLAS_DB_* set after cleanup.
 - Deployment retry blocked by Vercel daily deployment cap (will retry after reset).
+
+## Iteration 9
+- Added an owner loadboard that aggregates outcome responsibility and risk flags across teams.
+- Computed risk based on stale updates, missing evidence, low confidence, or Needs Lift status.
+- Styled the new loadboard panel with summary and scannable owner tags.
+
+## Iteration 10
+- Wired evidence check-ins to update outcome confidence and last-updated dates.
+- Ensured the check-in flow backfills outcome titles/owners and refreshes the dropdown list.
+- Added an async boot sequence so outcomes load before check-ins sync.
+
+## Iteration 10
+- Added a momentum check-ins panel with recent updates, momentum stats, and a logging form.
+- Wired check-in creation, rendering, and availability states into the main dashboard flow.
+- Updated styles and documentation to reflect check-in tracking.

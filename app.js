@@ -1,5 +1,7 @@
 const STORAGE_KEY = "gs_outcome_atlas_v1";
 const API_ENDPOINT = "/api/outcomes";
+const CHECKINS_KEY = "gs_outcome_atlas_checkins_v1";
+const CHECKINS_ENDPOINT = "/api/checkins";
 
 const demoOutcomes = [
   {
@@ -73,6 +75,8 @@ const selectors = {
   cadenceWeek: document.querySelector("#cadence-week"),
   cadenceMonth: document.querySelector("#cadence-month"),
   cadenceList: document.querySelector("#cadence-list"),
+  ownerSummary: document.querySelector("#owner-summary"),
+  ownerList: document.querySelector("#owner-list"),
   exportButton: document.querySelector("#export-json"),
   seedButton: document.querySelector("#seed-demo"),
   briefOutput: document.querySelector("#brief-output"),
@@ -80,16 +84,31 @@ const selectors = {
   briefGenerate: document.querySelector("#generate-brief"),
   briefCopy: document.querySelector("#copy-brief"),
   syncStatus: document.querySelector("#sync-status"),
+  checkinList: document.querySelector("#checkin-list"),
+  checkinForm: document.querySelector("#checkin-form"),
+  checkinOutcome: document.querySelector("#checkin-outcome"),
+  checkinDate: document.querySelector("#checkin-date"),
+  checkinMomentum: document.querySelector("#checkin-momentum"),
+  checkinDelta: document.querySelector("#checkin-delta"),
+  checkinNote: document.querySelector("#checkin-note"),
+  checkinNextStep: document.querySelector("#checkin-next-step"),
+  checkinsWeek: document.querySelector("#checkins-week"),
+  checkinsUp: document.querySelector("#checkins-up"),
 };
 
 let outcomes = [];
 let remoteAvailable = false;
+let checkins = [];
+let checkinsRemoteAvailable = false;
 
 function setDefaultDate() {
   const today = new Date().toISOString().split("T")[0];
   const dateInput = document.querySelector("#date");
   if (dateInput) {
     dateInput.value = today;
+  }
+  if (selectors.checkinDate) {
+    selectors.checkinDate.value = today;
   }
 }
 
@@ -105,8 +124,24 @@ function loadLocalOutcomes() {
   return demoOutcomes;
 }
 
+function loadLocalCheckins() {
+  const raw = localStorage.getItem(CHECKINS_KEY);
+  if (raw) {
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      console.warn("Unable to parse saved check-ins", error);
+    }
+  }
+  return [];
+}
+
 function saveOutcomes() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(outcomes));
+}
+
+function saveCheckins() {
+  localStorage.setItem(CHECKINS_KEY, JSON.stringify(checkins));
 }
 
 function updateSyncStatus(state, detail) {
@@ -136,6 +171,24 @@ async function fetchRemoteOutcomes() {
   } catch (error) {
     remoteAvailable = false;
     updateSyncStatus("error", "using local cache");
+    return null;
+  }
+}
+
+async function fetchRemoteCheckins() {
+  try {
+    const response = await fetch(CHECKINS_ENDPOINT, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`Remote fetch failed (${response.status})`);
+    }
+    const payload = await response.json();
+    const items = Array.isArray(payload.checkins) ? payload.checkins : [];
+    checkinsRemoteAvailable = true;
+    return items;
+  } catch (error) {
+    checkinsRemoteAvailable = false;
     return null;
   }
 }
@@ -170,6 +223,41 @@ async function persistOutcome(outcome) {
   }
 }
 
+function clampConfidence(value) {
+  return Math.min(Math.max(Number(value) || 0, 0), 100);
+}
+
+async function syncOutcomeUpdate(updatedOutcome) {
+  if (!remoteAvailable) return;
+  try {
+    const response = await fetch(API_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatedOutcome),
+    });
+    if (!response.ok) {
+      throw new Error(`Remote save failed (${response.status})`);
+    }
+  } catch (error) {
+    remoteAvailable = false;
+    updateSyncStatus("error", "saved locally");
+  }
+}
+
+function updateOutcomeFields(outcomeId, updates) {
+  let updatedOutcome = null;
+  outcomes = outcomes.map((item) => {
+    if (item.id !== outcomeId) return item;
+    updatedOutcome = { ...item, ...updates };
+    return updatedOutcome;
+  });
+  if (updatedOutcome) {
+    saveOutcomes();
+    renderOutcomes();
+    syncOutcomeUpdate(updatedOutcome);
+  }
+}
+
 async function seedDemoOutcomes() {
   const seeded = demoOutcomes.map((item) => ({
     ...item,
@@ -199,6 +287,46 @@ async function initializeOutcomes() {
     outcomes = remoteOutcomes;
     saveOutcomes();
     renderOutcomes();
+  }
+}
+
+async function persistCheckin(checkin) {
+  checkins = [checkin, ...checkins];
+  saveCheckins();
+  renderCheckins();
+
+  if (!checkinsRemoteAvailable) return;
+
+  try {
+    const response = await fetch(CHECKINS_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(checkin),
+    });
+    if (!response.ok) {
+      throw new Error(`Remote save failed (${response.status})`);
+    }
+    const payload = await response.json();
+    if (payload.checkin) {
+      checkins = checkins.map((item) =>
+        item.id === payload.checkin.id ? payload.checkin : item
+      );
+      saveCheckins();
+      renderCheckins();
+    }
+  } catch (error) {
+    checkinsRemoteAvailable = false;
+  }
+}
+
+async function initializeCheckins() {
+  checkins = loadLocalCheckins();
+  renderCheckins();
+  const remoteCheckins = await fetchRemoteCheckins();
+  if (remoteCheckins) {
+    checkins = remoteCheckins;
+    saveCheckins();
+    renderCheckins();
   }
 }
 
@@ -420,6 +548,187 @@ function renderCadence(filtered) {
   });
 }
 
+function formatDelta(value) {
+  const numeric = Number(value) || 0;
+  if (numeric > 0) return `+${numeric}`;
+  return `${numeric}`;
+}
+
+function populateCheckinOutcomes() {
+  if (!selectors.checkinOutcome) return;
+  const current = selectors.checkinOutcome.value;
+  selectors.checkinOutcome.innerHTML = "";
+
+  outcomes.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = `${item.title} · ${item.owner}`;
+    selectors.checkinOutcome.appendChild(option);
+  });
+
+  if (current) {
+    selectors.checkinOutcome.value = current;
+  }
+  if (!selectors.checkinOutcome.value && outcomes.length) {
+    selectors.checkinOutcome.value = outcomes[0].id;
+  }
+}
+
+function renderCheckins() {
+  if (!selectors.checkinList) return;
+  const sorted = [...checkins].sort(
+    (a, b) =>
+      new Date(b.update_date || b.created_at || 0) -
+      new Date(a.update_date || a.created_at || 0)
+  );
+
+  const weekCount = checkins.filter((item) => {
+    const daysOld = daysBetween(item.update_date || item.created_at?.split("T")[0]);
+    return daysOld !== null && daysOld <= 7;
+  }).length;
+
+  const upCount = checkins.filter((item) => item.momentum === "Up").length;
+
+  if (selectors.checkinsWeek) selectors.checkinsWeek.textContent = weekCount;
+  if (selectors.checkinsUp) selectors.checkinsUp.textContent = upCount;
+
+  selectors.checkinList.innerHTML = "";
+  if (!sorted.length) {
+    const emptyItem = document.createElement("li");
+    emptyItem.className = "checkin-item";
+    emptyItem.innerHTML =
+      "<strong>No check-ins yet.</strong><div class=\"checkin-meta muted\">Log an evidence touchpoint to keep momentum visible.</div>";
+    selectors.checkinList.appendChild(emptyItem);
+    return;
+  }
+
+  sorted.slice(0, 6).forEach((checkin) => {
+    const linked = outcomes.find((item) => item.id === checkin.outcome_id);
+    const title = checkin.outcome_title || linked?.title || "Outcome update";
+    const owner = checkin.outcome_owner || linked?.owner || "Owner not set";
+    const momentum = checkin.momentum || "Steady";
+    const momentumClass =
+      momentum === "Up" ? "tag up" : momentum === "Down" ? "tag down" : "tag";
+
+    const item = document.createElement("li");
+    item.className = "checkin-item";
+    item.innerHTML = `
+      <div class="checkin-top">
+        <div>
+          <strong>${title}</strong>
+          <div class="checkin-meta">
+            <span>${owner}</span>
+            <span>${formatDate(checkin.update_date)}</span>
+          </div>
+        </div>
+        <div class="checkin-tags">
+          <span class="${momentumClass}">${momentum}</span>
+          <span class="tag">Δ ${formatDelta(checkin.confidence_delta)}</span>
+        </div>
+      </div>
+      <div class="checkin-note">${checkin.note || "No notes added yet."}</div>
+      ${
+        checkin.next_step
+          ? `<div class="checkin-next muted">Next: ${checkin.next_step}</div>`
+          : ""
+      }
+    `;
+    selectors.checkinList.appendChild(item);
+  });
+}
+
+function isOutcomeAtRisk(item) {
+  const stale = daysBetween(item.date);
+  return (
+    item.status === "Needs Lift" ||
+    Number(item.confidence) < 70 ||
+    !item.evidence ||
+    !item.evidence.trim() ||
+    (stale !== null && stale > 30)
+  );
+}
+
+function buildOwnerLoad(filtered) {
+  const owners = new Map();
+
+  filtered.forEach((item) => {
+    const owner = item.owner || "Unassigned";
+    if (!owners.has(owner)) {
+      owners.set(owner, {
+        owner,
+        total: 0,
+        risk: 0,
+        needsLift: 0,
+        lastUpdate: null,
+        confidenceSum: 0,
+      });
+    }
+
+    const entry = owners.get(owner);
+    entry.total += 1;
+    entry.confidenceSum += Number(item.confidence || 0);
+    if (item.status === "Needs Lift") entry.needsLift += 1;
+    if (isOutcomeAtRisk(item)) entry.risk += 1;
+
+    if (item.date) {
+      const updated = new Date(`${item.date}T00:00:00`);
+      if (!entry.lastUpdate || updated > entry.lastUpdate) {
+        entry.lastUpdate = updated;
+      }
+    }
+  });
+
+  return Array.from(owners.values())
+    .map((entry) => ({
+      ...entry,
+      avgConfidence: Math.round(entry.confidenceSum / Math.max(entry.total, 1)),
+    }))
+    .sort((a, b) => {
+      if (b.risk !== a.risk) return b.risk - a.risk;
+      if (b.total !== a.total) return b.total - a.total;
+      return a.owner.localeCompare(b.owner);
+    });
+}
+
+function renderOwnerLoad(filtered) {
+  const load = buildOwnerLoad(filtered);
+  selectors.ownerList.innerHTML = "";
+
+  if (!load.length) {
+    const item = document.createElement("li");
+    item.className = "owner-item";
+    item.innerHTML = `<strong>No owners in view.</strong><div class="owner-meta muted">Add outcomes to surface ownership load.</div>`;
+    selectors.ownerList.appendChild(item);
+    selectors.ownerSummary.textContent = "No outcomes in view.";
+    return;
+  }
+
+  const riskOwners = load.filter((entry) => entry.risk > 0).length;
+  selectors.ownerSummary.textContent = `${load.length} owners · ${riskOwners} with risk flags`;
+
+  load.slice(0, 6).forEach((entry) => {
+    const item = document.createElement("li");
+    item.className = "owner-item";
+    const lastUpdate = entry.lastUpdate
+      ? formatDate(entry.lastUpdate.toISOString().split("T")[0])
+      : "No update logged";
+    item.innerHTML = `
+      <div>
+        <strong>${entry.owner}</strong>
+        <div class="owner-meta">
+          <span>${entry.total} outcomes</span>
+          <span>${lastUpdate}</span>
+        </div>
+      </div>
+      <div class="owner-tags">
+        <span class="tag">${entry.avgConfidence}% confidence</span>
+        <span class="tag ${entry.risk ? "alert" : ""}">${entry.risk} at risk</span>
+      </div>
+    `;
+    selectors.ownerList.appendChild(item);
+  });
+}
+
 function buildBrief(filtered) {
   const total = filtered.length;
   const onTrack = filtered.filter((item) => item.status === "On Track").length;
@@ -521,7 +830,11 @@ function renderOutcomes() {
   renderStats(filtered);
   renderHealth(filtered);
   renderCadence(filtered);
+  renderOwnerLoad(filtered);
   renderBrief(filtered);
+  populateCheckinOutcomes();
+  renderCheckins();
+  toggleCheckinAvailability();
 
   selectors.list.innerHTML = "";
   selectors.timeline.innerHTML = "";
@@ -565,6 +878,23 @@ function renderOutcomes() {
     `;
     selectors.timeline.appendChild(timelineItem);
   });
+}
+
+function toggleCheckinAvailability() {
+  if (!selectors.checkinForm) return;
+  const hasOutcomes = outcomes.length > 0;
+  const helper = document.querySelector("#checkin-empty");
+  if (helper) {
+    helper.textContent = hasOutcomes
+      ? "Log evidence touchpoints to keep momentum visible."
+      : "Add outcomes to enable check-ins.";
+  }
+  selectors.checkinForm
+    .querySelectorAll("input, select, textarea, button")
+    .forEach((input) => {
+      input.disabled = !hasOutcomes;
+    });
+  selectors.checkinForm.classList.toggle("is-disabled", !hasOutcomes);
 }
 
 selectors.form.addEventListener("submit", (event) => {
@@ -626,5 +956,47 @@ selectors.briefCopy.addEventListener("click", async () => {
   }
 });
 
-setDefaultDate();
-initializeOutcomes();
+if (selectors.checkinForm) {
+  selectors.checkinForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!selectors.checkinOutcome.value) return;
+    const linked = outcomes.find(
+      (item) => item.id === selectors.checkinOutcome.value
+    );
+    const delta = Number(selectors.checkinDelta.value || 0);
+    const nextConfidence = linked
+      ? clampConfidence(Number(linked.confidence || 0) + delta)
+      : null;
+
+    const newCheckin = {
+      id: crypto.randomUUID(),
+      outcome_id: selectors.checkinOutcome.value,
+      update_date: selectors.checkinDate.value,
+      momentum: selectors.checkinMomentum.value,
+      confidence_delta: delta,
+      note: selectors.checkinNote.value.trim(),
+      next_step: selectors.checkinNextStep.value.trim(),
+      outcome_title: linked?.title,
+      outcome_owner: linked?.owner,
+    };
+    persistCheckin(newCheckin);
+    if (linked) {
+      updateOutcomeFields(linked.id, {
+        date: newCheckin.update_date,
+        confidence: nextConfidence,
+      });
+    }
+    selectors.checkinForm.reset();
+    selectors.checkinDelta.value = 0;
+    selectors.checkinMomentum.value = "Steady";
+    setDefaultDate();
+  });
+}
+
+async function boot() {
+  setDefaultDate();
+  await initializeOutcomes();
+  await initializeCheckins();
+}
+
+boot();
