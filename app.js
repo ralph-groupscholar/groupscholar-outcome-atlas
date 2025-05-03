@@ -77,6 +77,8 @@ const selectors = {
   cadenceList: document.querySelector("#cadence-list"),
   ownerSummary: document.querySelector("#owner-summary"),
   ownerList: document.querySelector("#owner-list"),
+  riskSummary: document.querySelector("#risk-summary"),
+  riskList: document.querySelector("#risk-list"),
   exportButton: document.querySelector("#export-json"),
   seedButton: document.querySelector("#seed-demo"),
   briefOutput: document.querySelector("#brief-output"),
@@ -94,6 +96,8 @@ const selectors = {
   checkinNextStep: document.querySelector("#checkin-next-step"),
   checkinsWeek: document.querySelector("#checkins-week"),
   checkinsUp: document.querySelector("#checkins-up"),
+  momentumList: document.querySelector("#momentum-list"),
+  momentumSummary: document.querySelector("#momentum-summary"),
 };
 
 let outcomes = [];
@@ -599,6 +603,7 @@ function renderCheckins() {
     emptyItem.innerHTML =
       "<strong>No check-ins yet.</strong><div class=\"checkin-meta muted\">Log an evidence touchpoint to keep momentum visible.</div>";
     selectors.checkinList.appendChild(emptyItem);
+    renderMomentumSignals();
     return;
   }
 
@@ -634,6 +639,105 @@ function renderCheckins() {
       }
     `;
     selectors.checkinList.appendChild(item);
+  });
+
+  renderMomentumSignals();
+}
+
+function buildMomentumSignals() {
+  const cutoffDays = 30;
+  const byOutcome = new Map();
+
+  checkins.forEach((checkin) => {
+    const dateValue =
+      checkin.update_date || checkin.created_at?.split("T")[0];
+    const daysOld = daysBetween(dateValue);
+    if (daysOld === null || daysOld > cutoffDays) return;
+
+    const outcomeId = checkin.outcome_id;
+    if (!outcomeId) return;
+
+    if (!byOutcome.has(outcomeId)) {
+      byOutcome.set(outcomeId, {
+        outcomeId,
+        title: checkin.outcome_title || null,
+        owner: checkin.outcome_owner || null,
+        delta: 0,
+        up: 0,
+        down: 0,
+        lastDate: null,
+      });
+    }
+
+    const entry = byOutcome.get(outcomeId);
+    entry.delta += Number(checkin.confidence_delta || 0);
+    if (checkin.momentum === "Up") entry.up += 1;
+    if (checkin.momentum === "Down") entry.down += 1;
+
+    const parsed = dateValue ? new Date(`${dateValue}T00:00:00`) : null;
+    if (parsed && (!entry.lastDate || parsed > entry.lastDate)) {
+      entry.lastDate = parsed;
+    }
+  });
+
+  return Array.from(byOutcome.values())
+    .map((entry) => {
+      const linked = outcomes.find((item) => item.id === entry.outcomeId);
+      return {
+        ...entry,
+        title: entry.title || linked?.title || "Outcome update",
+        owner: entry.owner || linked?.owner || "Owner not set",
+        lastSeen: entry.lastDate
+          ? formatDate(entry.lastDate.toISOString().split("T")[0])
+          : "No recent date",
+      };
+    })
+    .sort((a, b) => {
+      const deltaGap = Math.abs(b.delta) - Math.abs(a.delta);
+      if (deltaGap !== 0) return deltaGap;
+      return a.title.localeCompare(b.title);
+    })
+    .slice(0, 6);
+}
+
+function renderMomentumSignals() {
+  if (!selectors.momentumList) return;
+  const signals = buildMomentumSignals();
+  selectors.momentumList.innerHTML = "";
+
+  if (selectors.momentumSummary) {
+    selectors.momentumSummary.textContent = `${signals.length} outcomes with check-ins in the last 30 days.`;
+  }
+
+  if (!signals.length) {
+    const empty = document.createElement("li");
+    empty.className = "momentum-item";
+    empty.innerHTML =
+      "<strong>No recent momentum yet.</strong><div class=\"momentum-meta muted\">Log check-ins to track confidence drift.</div>";
+    selectors.momentumList.appendChild(empty);
+    return;
+  }
+
+  signals.forEach((signal) => {
+    const deltaLabel = formatDelta(signal.delta);
+    const deltaClass =
+      signal.delta > 0 ? "tag up" : signal.delta < 0 ? "tag down" : "tag";
+    const item = document.createElement("li");
+    item.className = "momentum-item";
+    item.innerHTML = `
+      <div>
+        <strong>${signal.title}</strong>
+        <div class="momentum-meta">
+          <span>${signal.owner}</span>
+          <span>Last check-in: ${signal.lastSeen}</span>
+        </div>
+      </div>
+      <div class="checkin-tags">
+        <span class="${deltaClass}">Δ ${deltaLabel}</span>
+        <span class="tag">${signal.up} up · ${signal.down} down</span>
+      </div>
+    `;
+    selectors.momentumList.appendChild(item);
   });
 }
 
@@ -726,6 +830,104 @@ function renderOwnerLoad(filtered) {
       </div>
     `;
     selectors.ownerList.appendChild(item);
+  });
+}
+
+function getRiskFlags(item) {
+  const flags = [];
+  if (!item.evidence || !item.evidence.trim()) {
+    flags.push("Missing evidence");
+  }
+  const daysOld = daysBetween(item.date);
+  if (daysOld === null) {
+    flags.push("No update date");
+  } else if (daysOld > 30) {
+    flags.push(`Stale (${daysOld}d)`);
+  }
+  if (Number(item.confidence) < 70) {
+    flags.push(`Low confidence (${Math.round(item.confidence || 0)}%)`);
+  }
+  if (item.status === "Needs Lift") {
+    flags.push("Needs lift");
+  }
+  return { flags, daysOld };
+}
+
+function buildRiskRadar(filtered) {
+  const entries = filtered
+    .map((item) => {
+      const { flags, daysOld } = getRiskFlags(item);
+      if (!flags.length) return null;
+      const score = flags.length + (daysOld !== null && daysOld > 60 ? 1 : 0);
+      return {
+        item,
+        flags,
+        score,
+        daysOld: daysOld ?? 0,
+      };
+    })
+    .filter(Boolean);
+
+  const totalFlags = entries.reduce((sum, entry) => sum + entry.flags.length, 0);
+
+  const sorted = entries.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.daysOld !== a.daysOld) return b.daysOld - a.daysOld;
+    return a.item.title.localeCompare(b.item.title);
+  });
+
+  return {
+    totalAtRisk: entries.length,
+    totalFlags,
+    entries: sorted.slice(0, 6),
+  };
+}
+
+function renderRiskRadar(filtered) {
+  if (!selectors.riskList) return;
+  const radar = buildRiskRadar(filtered);
+  selectors.riskList.innerHTML = "";
+
+  if (selectors.riskSummary) {
+    const summaryLabel = radar.totalAtRisk
+      ? `${radar.totalAtRisk} outcomes flagged · ${radar.totalFlags} total signals`
+      : "0 outcomes flagged";
+    selectors.riskSummary.textContent = summaryLabel;
+  }
+
+  if (!radar.entries.length) {
+    const item = document.createElement("li");
+    item.className = "risk-item";
+    item.innerHTML =
+      "<strong>No risks detected.</strong><div class=\"risk-meta muted\">Evidence is fresh and confidence is stable in the current view.</div>";
+    selectors.riskList.appendChild(item);
+    return;
+  }
+
+  radar.entries.forEach((entry) => {
+    const { item, flags } = entry;
+    const card = document.createElement("li");
+    card.className = "risk-item";
+    const statusClass = item.status === "Needs Lift" ? "tag alert" : "tag";
+    card.innerHTML = `
+      <div class="risk-top">
+        <div>
+          <strong>${item.title}</strong>
+          <div class="risk-meta">
+            <span>${item.owner || "Unassigned"}</span>
+            <span>${formatDate(item.date) || "No update date"}</span>
+          </div>
+        </div>
+        <div class="risk-tags">
+          <span class="${statusClass}">${item.status}</span>
+          <span class="tag">${Math.round(item.confidence || 0)}% confidence</span>
+        </div>
+      </div>
+      <div class="risk-tags">
+        ${flags.map((flag) => `<span class="tag alert">${flag}</span>`).join("")}
+      </div>
+    `;
+    selectors.riskList.appendChild(card);
   });
 }
 
@@ -831,6 +1033,7 @@ function renderOutcomes() {
   renderHealth(filtered);
   renderCadence(filtered);
   renderOwnerLoad(filtered);
+  renderRiskRadar(filtered);
   renderBrief(filtered);
   populateCheckinOutcomes();
   renderCheckins();

@@ -28,7 +28,9 @@ const client = new Client({
 
 const SCHEMA = "groupscholar_outcome_atlas";
 const TABLE = "outcomes";
+const CHECKINS_TABLE = "outcome_checkins";
 const tableRef = `"${SCHEMA}"."${TABLE}"`;
+const checkinsRef = `"${SCHEMA}"."${CHECKINS_TABLE}"`;
 
 const sampleOutcomes = [
   {
@@ -105,6 +107,36 @@ const sampleOutcomes = [
   },
 ];
 
+const sampleCheckins = [
+  {
+    id: randomUUID(),
+    outcome_id: sampleOutcomes[0].id,
+    update_date: "2026-02-05",
+    confidence_delta: 4,
+    momentum: "Up",
+    note: "Retention nudges for first-gen scholars continued to reduce stop-out risk.",
+    next_step: "Share weekly playbook with regional advisors.",
+  },
+  {
+    id: randomUUID(),
+    outcome_id: sampleOutcomes[1].id,
+    update_date: "2026-02-01",
+    confidence_delta: -3,
+    momentum: "Down",
+    note: "STEM placement pipeline slowed as spring internships confirmed later than expected.",
+    next_step: "Accelerate employer outreach for April cohorts.",
+  },
+  {
+    id: randomUUID(),
+    outcome_id: sampleOutcomes[3].id,
+    update_date: "2026-02-03",
+    confidence_delta: 2,
+    momentum: "Up",
+    note: "New peer pod pilots improved belonging scores in early feedback.",
+    next_step: "Roll pods to remaining campuses by March.",
+  },
+];
+
 async function run() {
   await client.connect();
   await client.query(`CREATE SCHEMA IF NOT EXISTS "${SCHEMA}";`);
@@ -125,6 +157,24 @@ async function run() {
   `);
   await client.query(
     `CREATE INDEX IF NOT EXISTS ${TABLE}_last_updated_idx ON ${tableRef} (last_updated DESC);`
+  );
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS ${checkinsRef} (
+      id uuid PRIMARY KEY,
+      outcome_id uuid NOT NULL REFERENCES ${tableRef} (id) ON DELETE CASCADE,
+      update_date date NOT NULL,
+      confidence_delta integer NOT NULL DEFAULT 0,
+      momentum text NOT NULL DEFAULT 'Steady',
+      note text,
+      next_step text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  await client.query(
+    `CREATE INDEX IF NOT EXISTS ${CHECKINS_TABLE}_update_date_idx ON ${checkinsRef} (update_date DESC);`
+  );
+  await client.query(
+    `CREATE INDEX IF NOT EXISTS ${CHECKINS_TABLE}_outcome_id_idx ON ${checkinsRef} (outcome_id);`
   );
 
   for (const outcome of sampleOutcomes) {
@@ -160,7 +210,36 @@ async function run() {
     );
   }
 
-  console.log(`Seeded ${sampleOutcomes.length} outcomes.`);
+  for (const checkin of sampleCheckins) {
+    await client.query(
+      `
+      INSERT INTO ${checkinsRef}
+        (id, outcome_id, update_date, confidence_delta, momentum, note, next_step)
+      VALUES
+        ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (id) DO UPDATE SET
+        outcome_id = EXCLUDED.outcome_id,
+        update_date = EXCLUDED.update_date,
+        confidence_delta = EXCLUDED.confidence_delta,
+        momentum = EXCLUDED.momentum,
+        note = EXCLUDED.note,
+        next_step = EXCLUDED.next_step;
+      `,
+      [
+        checkin.id,
+        checkin.outcome_id,
+        checkin.update_date,
+        checkin.confidence_delta,
+        checkin.momentum,
+        checkin.note,
+        checkin.next_step,
+      ]
+    );
+  }
+
+  console.log(
+    `Seeded ${sampleOutcomes.length} outcomes and ${sampleCheckins.length} check-ins.`
+  );
   await client.end();
 }
 

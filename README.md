@@ -5,11 +5,12 @@ Outcome Atlas is a lightweight evidence ledger for tracking scholarship program 
 ## Highlights
 - Outcome portfolio with category, status, owner, and metric signals
 - Evidence timeline and confidence pulse
+- Momentum check-ins with confidence deltas and next steps
 - Local storage persistence plus JSON export
-- Cloud-synced outcomes backed by PostgreSQL
+- Cloud-synced outcomes and check-ins backed by PostgreSQL
 
 ## Cloud sync
-The `/api/outcomes` endpoint reads and writes outcomes from a PostgreSQL database.
+The `/api/outcomes` and `/api/checkins` endpoints read and write data from a PostgreSQL database.
 
 Required environment variables (set in Vercel):
 - `OUTCOME_ATLAS_DB_HOST`

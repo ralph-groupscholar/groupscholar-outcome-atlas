@@ -71,3 +71,8 @@
 - Added a momentum check-ins panel with recent updates, momentum stats, and a logging form.
 - Wired check-in creation, rendering, and availability states into the main dashboard flow.
 - Updated styles and documentation to reflect check-in tracking.
+
+## Iteration 11
+- Added a Risk Radar panel to surface outcomes with missing evidence, stale updates, low confidence, or Needs Lift flags.
+- Computed risk signal summaries and displayed top flagged outcomes with reason tags.
+- Styled the new risk list with metadata and status badges for quick triage.

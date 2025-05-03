@@ -146,6 +146,99 @@
         <ul class="cadence-list" id="cadence-list"></ul>
       </section>
 
+      <section class="panel owner-load">
+        <div class="owner-header">
+          <div>
+            <h2>Owner loadboard</h2>
+            <p class="muted">See which teams carry the heaviest evidence lift right now.</p>
+          </div>
+          <div class="health-note muted">Risk flags include stale, low confidence, or missing proof.</div>
+        </div>
+        <p class="muted" id="owner-summary">0 owners · 0 with risk flags</p>
+        <ul class="owner-list" id="owner-list"></ul>
+      </section>
+
+      <section class="panel risk">
+        <div class="risk-header">
+          <div>
+            <h2>Risk radar</h2>
+            <p class="muted">Surface outcomes that need evidence refreshes or stakeholder lift.</p>
+          </div>
+          <p class="muted" id="risk-summary">0 outcomes flagged</p>
+        </div>
+        <ul class="risk-list" id="risk-list"></ul>
+      </section>
+
+      <section class="panel checkins">
+        <div class="checkins-header">
+          <div>
+            <h2>Momentum check-ins</h2>
+            <p class="muted">Log evidence touchpoints to keep momentum and proof shifts visible.</p>
+          </div>
+          <div class="checkins-stats">
+            <div class="checkins-card">
+              <p class="stat-label">Last 7 days</p>
+              <p class="stat-value" id="checkins-week">0</p>
+              <p class="muted">Recent updates</p>
+            </div>
+            <div class="checkins-card">
+              <p class="stat-label">Momentum up</p>
+              <p class="stat-value" id="checkins-up">0</p>
+              <p class="muted">Positive shifts</p>
+            </div>
+          </div>
+        </div>
+        <div class="checkins-grid">
+          <div>
+            <h3>Recent check-ins</h3>
+            <p class="muted">Use this list to prep leadership updates and support follow-ups.</p>
+            <ul class="checkin-list" id="checkin-list"></ul>
+            <div class="checkins-insights">
+              <h3>Momentum signals</h3>
+              <p class="muted" id="momentum-summary">0 outcomes with check-ins in the last 30 days.</p>
+              <ul class="momentum-list" id="momentum-list"></ul>
+            </div>
+          </div>
+          <div>
+            <h3>Log a check-in</h3>
+            <p class="muted" id="checkin-empty">Log evidence touchpoints to keep momentum visible.</p>
+            <form id="checkin-form">
+              <div class="form-row">
+                <label for="checkin-outcome">Outcome</label>
+                <select id="checkin-outcome" required></select>
+              </div>
+              <div class="form-row two">
+                <div>
+                  <label for="checkin-date">Update date</label>
+                  <input id="checkin-date" type="date" required />
+                </div>
+                <div>
+                  <label for="checkin-momentum">Momentum</label>
+                  <select id="checkin-momentum" required>
+                    <option value="Up">Up</option>
+                    <option value="Steady" selected>Steady</option>
+                    <option value="Down">Down</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <label for="checkin-delta">Confidence delta</label>
+                <input id="checkin-delta" type="number" min="-20" max="20" value="0" />
+              </div>
+              <div class="form-row">
+                <label for="checkin-note">Evidence note</label>
+                <textarea id="checkin-note" rows="3" placeholder="New proof, data refresh, or stakeholder signal"></textarea>
+              </div>
+              <div class="form-row">
+                <label for="checkin-next-step">Next step</label>
+                <input id="checkin-next-step" placeholder="Follow-up action or owner" />
+              </div>
+              <button class="primary" type="submit">Log check-in</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
       <section class="grid">
         <div class="panel">
           <h2>Outcome portfolio</h2>
