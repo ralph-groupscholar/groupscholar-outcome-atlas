@@ -76,3 +76,8 @@
 - Added a Risk Radar panel to surface outcomes with missing evidence, stale updates, low confidence, or Needs Lift flags.
 - Computed risk signal summaries and displayed top flagged outcomes with reason tags.
 - Styled the new risk list with metadata and status badges for quick triage.
+
+## Iteration 12
+- Implemented the owner rhythm panel logic to summarize check-in freshness and story beat timing per owner.
+- Added stale check-in detection, upcoming/overdue story beat counts, and next story dates to the owner rhythm list.
+- Wired owner rhythm rendering into outcomes, check-ins, and story beat refresh flows.

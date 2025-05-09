@@ -2,6 +2,8 @@ const STORAGE_KEY = "gs_outcome_atlas_v1";
 const API_ENDPOINT = "/api/outcomes";
 const CHECKINS_KEY = "gs_outcome_atlas_checkins_v1";
 const CHECKINS_ENDPOINT = "/api/checkins";
+const STORYBEATS_KEY = "gs_outcome_atlas_storybeats_v1";
+const STORYBEATS_ENDPOINT = "/api/storybeats";
 
 const demoOutcomes = [
   {
@@ -15,6 +17,7 @@ const demoOutcomes = [
     date: "2026-02-02",
     evidence: "https://example.com/retention-report",
     story: "Advisor office hours tied to term readiness reduced midterm drop-offs.",
+    tags: ["retention", "advisor outreach", "first-gen"],
   },
   {
     id: crypto.randomUUID(),
@@ -27,6 +30,7 @@ const demoOutcomes = [
     date: "2026-01-26",
     evidence: "https://example.com/placement-dashboard",
     story: "Employer cohort matchups improving, but pipeline still uneven for STEM majors.",
+    tags: ["career", "employer pipeline", "STEM"],
   },
   {
     id: crypto.randomUUID(),
@@ -39,6 +43,7 @@ const demoOutcomes = [
     date: "2026-01-20",
     evidence: "https://example.com/grant-log",
     story: "New financial coaching cadence reduced crisis escalations.",
+    tags: ["wellbeing", "financial coaching", "emergency grants"],
   },
   {
     id: crypto.randomUUID(),
@@ -51,6 +56,7 @@ const demoOutcomes = [
     date: "2026-01-29",
     evidence: "https://example.com/survey-highlights",
     story: "Scholars want more peer pods across campuses; listening sessions scheduled.",
+    tags: ["community", "belonging", "peer pods"],
   },
 ];
 
@@ -61,6 +67,7 @@ const selectors = {
   search: document.querySelector("#search"),
   filterCategory: document.querySelector("#filter-category"),
   filterStatus: document.querySelector("#filter-status"),
+  filterTag: document.querySelector("#filter-tag"),
   sortBy: document.querySelector("#sort-by"),
   statTotal: document.querySelector("#stat-total"),
   statOnTrack: document.querySelector("#stat-on-track"),
@@ -77,6 +84,10 @@ const selectors = {
   cadenceList: document.querySelector("#cadence-list"),
   ownerSummary: document.querySelector("#owner-summary"),
   ownerList: document.querySelector("#owner-list"),
+  ownerRhythmSummary: document.querySelector("#owner-rhythm-summary"),
+  ownerRhythmList: document.querySelector("#owner-rhythm-list"),
+  categorySummary: document.querySelector("#category-summary"),
+  categoryList: document.querySelector("#category-list"),
   riskSummary: document.querySelector("#risk-summary"),
   riskList: document.querySelector("#risk-list"),
   exportButton: document.querySelector("#export-json"),
@@ -98,12 +109,26 @@ const selectors = {
   checkinsUp: document.querySelector("#checkins-up"),
   momentumList: document.querySelector("#momentum-list"),
   momentumSummary: document.querySelector("#momentum-summary"),
+  storyList: document.querySelector("#story-list"),
+  storyForm: document.querySelector("#story-form"),
+  storyOutcome: document.querySelector("#story-outcome"),
+  storyAudience: document.querySelector("#story-audience"),
+  storyHeadline: document.querySelector("#story-headline"),
+  storyProof: document.querySelector("#story-proof"),
+  storyNext: document.querySelector("#story-next"),
+  storyDate: document.querySelector("#story-date"),
+  storyOverdue: document.querySelector("#story-overdue"),
+  storyWeek: document.querySelector("#story-week"),
+  storyPartner: document.querySelector("#story-partner"),
+  tagsInput: document.querySelector("#tags"),
 };
 
 let outcomes = [];
 let remoteAvailable = false;
 let checkins = [];
 let checkinsRemoteAvailable = false;
+let storybeats = [];
+let storybeatsRemoteAvailable = false;
 
 function setDefaultDate() {
   const today = new Date().toISOString().split("T")[0];
@@ -113,6 +138,9 @@ function setDefaultDate() {
   }
   if (selectors.checkinDate) {
     selectors.checkinDate.value = today;
+  }
+  if (selectors.storyDate) {
+    selectors.storyDate.value = today;
   }
 }
 
@@ -140,12 +168,28 @@ function loadLocalCheckins() {
   return [];
 }
 
+function loadLocalStorybeats() {
+  const raw = localStorage.getItem(STORYBEATS_KEY);
+  if (raw) {
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      console.warn("Unable to parse saved storybeats", error);
+    }
+  }
+  return [];
+}
+
 function saveOutcomes() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(outcomes));
 }
 
 function saveCheckins() {
   localStorage.setItem(CHECKINS_KEY, JSON.stringify(checkins));
+}
+
+function saveStorybeats() {
+  localStorage.setItem(STORYBEATS_KEY, JSON.stringify(storybeats));
 }
 
 function updateSyncStatus(state, detail) {
@@ -193,6 +237,24 @@ async function fetchRemoteCheckins() {
     return items;
   } catch (error) {
     checkinsRemoteAvailable = false;
+    return null;
+  }
+}
+
+async function fetchRemoteStorybeats() {
+  try {
+    const response = await fetch(STORYBEATS_ENDPOINT, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`Remote fetch failed (${response.status})`);
+    }
+    const payload = await response.json();
+    const items = Array.isArray(payload.storybeats) ? payload.storybeats : [];
+    storybeatsRemoteAvailable = true;
+    return items;
+  } catch (error) {
+    storybeatsRemoteAvailable = false;
     return null;
   }
 }
@@ -331,6 +393,46 @@ async function initializeCheckins() {
     checkins = remoteCheckins;
     saveCheckins();
     renderCheckins();
+  }
+}
+
+async function persistStorybeat(storybeat) {
+  storybeats = [storybeat, ...storybeats];
+  saveStorybeats();
+  renderStorybeats();
+
+  if (!storybeatsRemoteAvailable) return;
+
+  try {
+    const response = await fetch(STORYBEATS_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(storybeat),
+    });
+    if (!response.ok) {
+      throw new Error(`Remote save failed (${response.status})`);
+    }
+    const payload = await response.json();
+    if (payload.storybeat) {
+      storybeats = storybeats.map((item) =>
+        item.id === payload.storybeat.id ? payload.storybeat : item
+      );
+      saveStorybeats();
+      renderStorybeats();
+    }
+  } catch (error) {
+    storybeatsRemoteAvailable = false;
+  }
+}
+
+async function initializeStorybeats() {
+  storybeats = loadLocalStorybeats();
+  renderStorybeats();
+  const remoteStorybeats = await fetchRemoteStorybeats();
+  if (remoteStorybeats) {
+    storybeats = remoteStorybeats;
+    saveStorybeats();
+    renderStorybeats();
   }
 }
 
@@ -578,6 +680,26 @@ function populateCheckinOutcomes() {
   }
 }
 
+function populateStorybeatOutcomes() {
+  if (!selectors.storyOutcome) return;
+  const current = selectors.storyOutcome.value;
+  selectors.storyOutcome.innerHTML = "";
+
+  outcomes.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = `${item.title} · ${item.owner}`;
+    selectors.storyOutcome.appendChild(option);
+  });
+
+  if (current) {
+    selectors.storyOutcome.value = current;
+  }
+  if (!selectors.storyOutcome.value && outcomes.length) {
+    selectors.storyOutcome.value = outcomes[0].id;
+  }
+}
+
 function renderCheckins() {
   if (!selectors.checkinList) return;
   const sorted = [...checkins].sort(
@@ -604,6 +726,7 @@ function renderCheckins() {
       "<strong>No check-ins yet.</strong><div class=\"checkin-meta muted\">Log an evidence touchpoint to keep momentum visible.</div>";
     selectors.checkinList.appendChild(emptyItem);
     renderMomentumSignals();
+    renderOwnerRhythm(getFilteredOutcomes());
     return;
   }
 
@@ -642,6 +765,90 @@ function renderCheckins() {
   });
 
   renderMomentumSignals();
+  renderOwnerRhythm(getFilteredOutcomes());
+}
+
+function renderStorybeats() {
+  if (!selectors.storyList) return;
+  const sorted = [...storybeats].sort((a, b) => {
+    const dateA = a.scheduled_date || a.created_at || 0;
+    const dateB = b.scheduled_date || b.created_at || 0;
+    return new Date(dateA) - new Date(dateB);
+  });
+
+  const overdueCount = storybeats.filter((item) => {
+    const daysGap = daysBetween(item.scheduled_date);
+    return daysGap !== null && daysGap > 0;
+  }).length;
+
+  const weekCount = storybeats.filter((item) => {
+    const daysGap = daysBetween(item.scheduled_date);
+    return daysGap !== null && daysGap <= 0 && daysGap >= -7;
+  }).length;
+
+  const partnerCount = storybeats.filter(
+    (item) => item.audience === "Partners"
+  ).length;
+
+  if (selectors.storyOverdue) selectors.storyOverdue.textContent = overdueCount;
+  if (selectors.storyWeek) selectors.storyWeek.textContent = weekCount;
+  if (selectors.storyPartner) selectors.storyPartner.textContent = partnerCount;
+
+  selectors.storyList.innerHTML = "";
+  if (!sorted.length) {
+    const emptyItem = document.createElement("li");
+    emptyItem.className = "story-item";
+    emptyItem.innerHTML =
+      "<strong>No story beats yet.</strong><div class=\"story-meta muted\">Queue upcoming partner and leadership updates here.</div>";
+    selectors.storyList.appendChild(emptyItem);
+    renderOwnerRhythm(getFilteredOutcomes());
+    return;
+  }
+
+  sorted.slice(0, 6).forEach((storybeat) => {
+    const linked = outcomes.find((item) => item.id === storybeat.outcome_id);
+    const title = storybeat.outcome_title || linked?.title || "Outcome update";
+    const owner = storybeat.owner || storybeat.outcome_owner || linked?.owner || "Owner not set";
+    const daysGap = daysBetween(storybeat.scheduled_date);
+    let statusLabel = "Upcoming";
+    let statusClass = "tag";
+    if (daysGap === 0) statusLabel = "Due today";
+    if (daysGap !== null && daysGap > 0) {
+      statusLabel = `Overdue by ${daysGap} days`;
+      statusClass = "tag alert";
+    }
+    if (daysGap !== null && daysGap < 0) {
+      statusLabel = `Due in ${Math.abs(daysGap)} days`;
+    }
+
+    const item = document.createElement("li");
+    item.className = "story-item";
+    item.innerHTML = `
+      <div class="story-top">
+        <div>
+          <strong>${storybeat.headline || "Story beat"}</strong>
+          <div class="story-meta">
+            <span>${title}</span>
+            <span>${owner}</span>
+            <span>${formatDate(storybeat.scheduled_date)}</span>
+          </div>
+        </div>
+        <div class="story-tags">
+          <span class="tag">${storybeat.audience || "Audience"}</span>
+          <span class="${statusClass}">${statusLabel}</span>
+        </div>
+      </div>
+      <div class="story-proof">${storybeat.proof_point || "No proof point added yet."}</div>
+      ${
+        storybeat.next_move
+          ? `<div class="story-next muted">Next: ${storybeat.next_move}</div>`
+          : ""
+      }
+    `;
+    selectors.storyList.appendChild(item);
+  });
+
+  renderOwnerRhythm(getFilteredOutcomes());
 }
 
 function buildMomentumSignals() {
@@ -830,6 +1037,137 @@ function renderOwnerLoad(filtered) {
       </div>
     `;
     selectors.ownerList.appendChild(item);
+  });
+}
+
+function buildOwnerRhythm(filtered) {
+  const byOwner = new Map();
+  const outcomeMap = new Map();
+
+  filtered.forEach((item) => {
+    outcomeMap.set(item.id, item);
+    const owner = item.owner || "Unassigned";
+    if (!byOwner.has(owner)) {
+      byOwner.set(owner, {
+        owner,
+        outcomes: 0,
+        lastCheckinDate: null,
+        overdueStorybeats: 0,
+        upcomingStorybeats: 0,
+        nextStoryDate: null,
+      });
+    }
+    byOwner.get(owner).outcomes += 1;
+  });
+
+  checkins.forEach((checkin) => {
+    if (!outcomeMap.has(checkin.outcome_id)) return;
+    const linked = outcomeMap.get(checkin.outcome_id);
+    const owner = checkin.outcome_owner || linked?.owner || "Unassigned";
+    if (!byOwner.has(owner)) return;
+    const dateValue = checkin.update_date || checkin.created_at?.split("T")[0];
+    if (!dateValue) return;
+    const parsed = new Date(`${dateValue}T00:00:00`);
+    const entry = byOwner.get(owner);
+    if (!entry.lastCheckinDate || parsed > entry.lastCheckinDate) {
+      entry.lastCheckinDate = parsed;
+    }
+  });
+
+  storybeats.forEach((storybeat) => {
+    if (!outcomeMap.has(storybeat.outcome_id)) return;
+    const linked = outcomeMap.get(storybeat.outcome_id);
+    const owner = storybeat.owner || storybeat.outcome_owner || linked?.owner || "Unassigned";
+    if (!byOwner.has(owner)) return;
+    const dateValue = storybeat.scheduled_date || storybeat.created_at?.split("T")[0];
+    if (!dateValue) return;
+    const parsed = new Date(`${dateValue}T00:00:00`);
+    const daysGap = daysBetween(dateValue);
+    const entry = byOwner.get(owner);
+    if (daysGap !== null && daysGap > 0) {
+      entry.overdueStorybeats += 1;
+    } else if (daysGap !== null && daysGap >= -14) {
+      entry.upcomingStorybeats += 1;
+    }
+    if (!entry.nextStoryDate || parsed < entry.nextStoryDate) {
+      entry.nextStoryDate = parsed;
+    }
+  });
+
+  return Array.from(byOwner.values())
+    .map((entry) => {
+      const lastCheckinLabel = entry.lastCheckinDate
+        ? formatDate(entry.lastCheckinDate.toISOString().split("T")[0])
+        : "No check-ins yet";
+      const daysSince = entry.lastCheckinDate
+        ? daysBetween(entry.lastCheckinDate.toISOString().split("T")[0])
+        : null;
+      return {
+        ...entry,
+        lastCheckinLabel,
+        daysSince,
+        staleCheckins: daysSince === null || daysSince > 21,
+        nextStoryLabel: entry.nextStoryDate
+          ? formatDate(entry.nextStoryDate.toISOString().split("T")[0])
+          : "No story beats yet",
+      };
+    })
+    .sort((a, b) => {
+      if (b.overdueStorybeats !== a.overdueStorybeats) {
+        return b.overdueStorybeats - a.overdueStorybeats;
+      }
+      if (b.staleCheckins !== a.staleCheckins) {
+        return Number(b.staleCheckins) - Number(a.staleCheckins);
+      }
+      return a.owner.localeCompare(b.owner);
+    });
+}
+
+function renderOwnerRhythm(filtered) {
+  if (!selectors.ownerRhythmList || !selectors.ownerRhythmSummary) return;
+  const rhythm = buildOwnerRhythm(filtered);
+  selectors.ownerRhythmList.innerHTML = "";
+
+  if (!rhythm.length) {
+    const item = document.createElement("li");
+    item.className = "owner-rhythm-item";
+    item.innerHTML =
+      "<strong>No owners in view.</strong><div class=\"owner-rhythm-meta muted\">Add outcomes to track check-in rhythm.</div>";
+    selectors.ownerRhythmList.appendChild(item);
+    selectors.ownerRhythmSummary.textContent = "0 owners · 0 with stale check-ins";
+    return;
+  }
+
+  const staleCount = rhythm.filter((entry) => entry.staleCheckins).length;
+  const overdueCount = rhythm.reduce((sum, entry) => sum + entry.overdueStorybeats, 0);
+  selectors.ownerRhythmSummary.textContent = `${rhythm.length} owners · ${staleCount} with stale check-ins · ${overdueCount} story beats overdue`;
+
+  rhythm.slice(0, 6).forEach((entry) => {
+    const staleClass = entry.staleCheckins ? "tag alert" : "tag";
+    const storyClass = entry.overdueStorybeats ? "tag alert" : "tag";
+    const storyLabel = entry.overdueStorybeats
+      ? `${entry.overdueStorybeats} overdue`
+      : entry.upcomingStorybeats
+        ? `${entry.upcomingStorybeats} due soon`
+        : "No upcoming beats";
+
+    const item = document.createElement("li");
+    item.className = "owner-rhythm-item";
+    item.innerHTML = `
+      <div>
+        <strong>${entry.owner}</strong>
+        <div class="owner-rhythm-meta">
+          <span>${entry.outcomes} outcomes</span>
+          <span>Last check-in: ${entry.lastCheckinLabel}</span>
+          <span>Next story: ${entry.nextStoryLabel}</span>
+        </div>
+      </div>
+      <div class="owner-rhythm-tags">
+        <span class="${staleClass}">${entry.staleCheckins ? "Check-in stale" : "Check-in current"}</span>
+        <span class="${storyClass}">${storyLabel}</span>
+      </div>
+    `;
+    selectors.ownerRhythmList.appendChild(item);
   });
 }
 
@@ -1033,11 +1371,15 @@ function renderOutcomes() {
   renderHealth(filtered);
   renderCadence(filtered);
   renderOwnerLoad(filtered);
+  renderOwnerRhythm(filtered);
   renderRiskRadar(filtered);
   renderBrief(filtered);
   populateCheckinOutcomes();
   renderCheckins();
   toggleCheckinAvailability();
+  populateStorybeatOutcomes();
+  renderStorybeats();
+  toggleStorybeatAvailability();
 
   selectors.list.innerHTML = "";
   selectors.timeline.innerHTML = "";
@@ -1098,6 +1440,23 @@ function toggleCheckinAvailability() {
       input.disabled = !hasOutcomes;
     });
   selectors.checkinForm.classList.toggle("is-disabled", !hasOutcomes);
+}
+
+function toggleStorybeatAvailability() {
+  if (!selectors.storyForm) return;
+  const hasOutcomes = outcomes.length > 0;
+  const helper = document.querySelector("#story-empty");
+  if (helper) {
+    helper.textContent = hasOutcomes
+      ? "Queue narrative beats for partner and leadership updates."
+      : "Add outcomes to enable story beats.";
+  }
+  selectors.storyForm
+    .querySelectorAll("input, select, textarea, button")
+    .forEach((input) => {
+      input.disabled = !hasOutcomes;
+    });
+  selectors.storyForm.classList.toggle("is-disabled", !hasOutcomes);
 }
 
 selectors.form.addEventListener("submit", (event) => {
@@ -1196,10 +1555,38 @@ if (selectors.checkinForm) {
   });
 }
 
+if (selectors.storyForm) {
+  selectors.storyForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!selectors.storyOutcome.value) return;
+    const linked = outcomes.find(
+      (item) => item.id === selectors.storyOutcome.value
+    );
+
+    const newStorybeat = {
+      id: crypto.randomUUID(),
+      outcome_id: selectors.storyOutcome.value,
+      audience: selectors.storyAudience.value,
+      headline: selectors.storyHeadline.value.trim(),
+      proof_point: selectors.storyProof.value.trim(),
+      next_move: selectors.storyNext.value.trim(),
+      scheduled_date: selectors.storyDate.value,
+      owner: linked?.owner || null,
+      outcome_title: linked?.title,
+      outcome_owner: linked?.owner,
+    };
+    persistStorybeat(newStorybeat);
+    selectors.storyForm.reset();
+    selectors.storyAudience.value = "Leadership";
+    setDefaultDate();
+  });
+}
+
 async function boot() {
   setDefaultDate();
   await initializeOutcomes();
   await initializeCheckins();
+  await initializeStorybeats();
 }
 
 boot();
