@@ -158,6 +158,30 @@
         <ul class="owner-list" id="owner-list"></ul>
       </section>
 
+      <section class="panel owner-rhythm">
+        <div class="owner-rhythm-header">
+          <div>
+            <h2>Owner follow-through</h2>
+            <p class="muted">Track check-in freshness and upcoming story beats by owner.</p>
+          </div>
+          <div class="health-note muted">Based on outcomes, check-ins, and story beats in view.</div>
+        </div>
+        <p class="muted" id="owner-rhythm-summary">0 owners · 0 with stale check-ins</p>
+        <ul class="owner-rhythm-list" id="owner-rhythm-list"></ul>
+      </section>
+
+      <section class="panel category-balance">
+        <div class="category-header">
+          <div>
+            <h2>Category balance</h2>
+            <p class="muted">See portfolio mix, confidence, and evidence gaps by outcome category.</p>
+          </div>
+          <div class="health-note muted">Based on outcomes in the current view.</div>
+        </div>
+        <p class="muted" id="category-summary">0 categories · 0 with risk flags</p>
+        <ul class="category-list" id="category-list"></ul>
+      </section>
+
       <section class="panel risk">
         <div class="risk-header">
           <div>
@@ -234,6 +258,85 @@
                 <input id="checkin-next-step" placeholder="Follow-up action or owner" />
               </div>
               <button class="primary" type="submit">Log check-in</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel storybeats">
+        <div class="storybeats-header">
+          <div>
+            <h2>Story beats</h2>
+            <p class="muted">Queue narrative moments for leadership, partners, and scholar updates.</p>
+          </div>
+          <div class="storybeats-stats">
+            <div class="storybeats-card">
+              <p class="stat-label">Overdue</p>
+              <p class="stat-value" id="story-overdue">0</p>
+              <p class="muted">Needs an update</p>
+            </div>
+            <div class="storybeats-card">
+              <p class="stat-label">Next 7 days</p>
+              <p class="stat-value" id="story-week">0</p>
+              <p class="muted">Upcoming beats</p>
+            </div>
+            <div class="storybeats-card">
+              <p class="stat-label">Partner beats</p>
+              <p class="stat-value" id="story-partner">0</p>
+              <p class="muted">Partner ready</p>
+            </div>
+          </div>
+        </div>
+        <div class="storybeats-grid">
+          <div>
+            <h3>Upcoming story beats</h3>
+            <p class="muted">Keep narrative touchpoints aligned to outcome owners.</p>
+            <ul class="story-list" id="story-list"></ul>
+          </div>
+          <div>
+            <h3>Schedule a beat</h3>
+            <p class="muted" id="story-empty">Queue narrative beats for partner and leadership updates.</p>
+            <form id="story-form">
+              <div class="form-row">
+                <label for="story-outcome">Outcome</label>
+                <select id="story-outcome" required></select>
+              </div>
+              <div class="form-row two">
+                <div>
+                  <label for="story-audience">Audience</label>
+                  <select id="story-audience" required>
+                    <option value="Leadership" selected>Leadership</option>
+                    <option value="Partners">Partners</option>
+                    <option value="Scholars">Scholars</option>
+                    <option value="Board">Board</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="story-date">Scheduled date</label>
+                  <input id="story-date" type="date" required />
+                </div>
+              </div>
+              <div class="form-row">
+                <label for="story-headline">Headline</label>
+                <input
+                  id="story-headline"
+                  required
+                  placeholder="Peer pods lifted belonging scores"
+                />
+              </div>
+              <div class="form-row">
+                <label for="story-proof">Proof point</label>
+                <textarea
+                  id="story-proof"
+                  rows="3"
+                  placeholder="Evidence, data point, or quote that anchors the story"
+                ></textarea>
+              </div>
+              <div class="form-row">
+                <label for="story-next">Next move</label>
+                <input id="story-next" placeholder="Follow-up action or asset needed" />
+              </div>
+              <button class="primary" type="submit">Schedule beat</button>
             </form>
           </div>
         </div>

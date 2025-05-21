@@ -4,6 +4,8 @@ const CHECKINS_KEY = "gs_outcome_atlas_checkins_v1";
 const CHECKINS_ENDPOINT = "/api/checkins";
 const STORYBEATS_KEY = "gs_outcome_atlas_storybeats_v1";
 const STORYBEATS_ENDPOINT = "/api/storybeats";
+const SOURCES_KEY = "gs_outcome_atlas_sources_v1";
+const SOURCES_ENDPOINT = "/api/sources";
 
 const demoOutcomes = [
   {
@@ -60,6 +62,48 @@ const demoOutcomes = [
   },
 ];
 
+function buildDemoSources(seededOutcomes) {
+  if (!seededOutcomes.length) return [];
+  return [
+    {
+      id: crypto.randomUUID(),
+      outcome_id: seededOutcomes[0].id,
+      source_name: "Retention dashboard",
+      source_type: "Dashboard",
+      last_verified: "2026-02-01",
+      cadence_days: 14,
+      owner: "Program Ops",
+      notes: "Weekly export from SIS retention tracker.",
+      outcome_title: seededOutcomes[0].title,
+      outcome_owner: seededOutcomes[0].owner,
+    },
+    {
+      id: crypto.randomUUID(),
+      outcome_id: seededOutcomes[1].id,
+      source_name: "Placement pipeline sheet",
+      source_type: "Report",
+      last_verified: "2026-01-27",
+      cadence_days: 21,
+      owner: "Career Success",
+      notes: "Updated after each employer cohort sync.",
+      outcome_title: seededOutcomes[1].title,
+      outcome_owner: seededOutcomes[1].owner,
+    },
+    {
+      id: crypto.randomUUID(),
+      outcome_id: seededOutcomes[3].id,
+      source_name: "Belonging pulse survey",
+      source_type: "Survey",
+      last_verified: "2026-01-22",
+      cadence_days: 30,
+      owner: "Community Team",
+      notes: "Aggregate scores by campus + cohort.",
+      outcome_title: seededOutcomes[3].title,
+      outcome_owner: seededOutcomes[3].owner,
+    },
+  ];
+}
+
 const selectors = {
   list: document.querySelector("#outcome-list"),
   timeline: document.querySelector("#timeline"),
@@ -109,6 +153,18 @@ const selectors = {
   checkinsUp: document.querySelector("#checkins-up"),
   momentumList: document.querySelector("#momentum-list"),
   momentumSummary: document.querySelector("#momentum-summary"),
+  sourceList: document.querySelector("#source-list"),
+  sourceForm: document.querySelector("#source-form"),
+  sourceOutcome: document.querySelector("#source-outcome"),
+  sourceName: document.querySelector("#source-name"),
+  sourceType: document.querySelector("#source-type"),
+  sourceVerified: document.querySelector("#source-verified"),
+  sourceCadence: document.querySelector("#source-cadence"),
+  sourceOwner: document.querySelector("#source-owner"),
+  sourceNotes: document.querySelector("#source-notes"),
+  sourceOverdue: document.querySelector("#source-overdue"),
+  sourceWeek: document.querySelector("#source-week"),
+  sourceCoverage: document.querySelector("#source-coverage"),
   storyList: document.querySelector("#story-list"),
   storyForm: document.querySelector("#story-form"),
   storyOutcome: document.querySelector("#story-outcome"),
@@ -129,6 +185,8 @@ let checkins = [];
 let checkinsRemoteAvailable = false;
 let storybeats = [];
 let storybeatsRemoteAvailable = false;
+let sources = [];
+let sourcesRemoteAvailable = false;
 
 function setDefaultDate() {
   const today = new Date().toISOString().split("T")[0];
@@ -180,6 +238,18 @@ function loadLocalStorybeats() {
   return [];
 }
 
+function loadLocalSources() {
+  const raw = localStorage.getItem(SOURCES_KEY);
+  if (raw) {
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      console.warn("Unable to parse saved sources", error);
+    }
+  }
+  return [];
+}
+
 function saveOutcomes() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(outcomes));
 }
@@ -190,6 +260,10 @@ function saveCheckins() {
 
 function saveStorybeats() {
   localStorage.setItem(STORYBEATS_KEY, JSON.stringify(storybeats));
+}
+
+function saveSources() {
+  localStorage.setItem(SOURCES_KEY, JSON.stringify(sources));
 }
 
 function updateSyncStatus(state, detail) {
@@ -255,6 +329,24 @@ async function fetchRemoteStorybeats() {
     return items;
   } catch (error) {
     storybeatsRemoteAvailable = false;
+    return null;
+  }
+}
+
+async function fetchRemoteSources() {
+  try {
+    const response = await fetch(SOURCES_ENDPOINT, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`Remote fetch failed (${response.status})`);
+    }
+    const payload = await response.json();
+    const items = Array.isArray(payload.sources) ? payload.sources : [];
+    sourcesRemoteAvailable = true;
+    return items;
+  } catch (error) {
+    sourcesRemoteAvailable = false;
     return null;
   }
 }
@@ -433,6 +525,46 @@ async function initializeStorybeats() {
     storybeats = remoteStorybeats;
     saveStorybeats();
     renderStorybeats();
+  }
+}
+
+async function persistSource(source) {
+  sources = [source, ...sources];
+  saveSources();
+  renderSources(getFilteredOutcomes());
+
+  if (!sourcesRemoteAvailable) return;
+
+  try {
+    const response = await fetch(SOURCES_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(source),
+    });
+    if (!response.ok) {
+      throw new Error(`Remote save failed (${response.status})`);
+    }
+    const payload = await response.json();
+    if (payload.source) {
+      sources = sources.map((item) =>
+        item.id === payload.source.id ? payload.source : item
+      );
+      saveSources();
+      renderSources(getFilteredOutcomes());
+    }
+  } catch (error) {
+    sourcesRemoteAvailable = false;
+  }
+}
+
+async function initializeSources() {
+  sources = loadLocalSources();
+  renderSources(getFilteredOutcomes());
+  const remoteSources = await fetchRemoteSources();
+  if (remoteSources) {
+    sources = remoteSources;
+    saveSources();
+    renderSources(getFilteredOutcomes());
   }
 }
 
@@ -1168,6 +1300,108 @@ function renderOwnerRhythm(filtered) {
       </div>
     `;
     selectors.ownerRhythmList.appendChild(item);
+  });
+}
+
+function buildCategoryBalance(filtered) {
+  const categories = new Map();
+
+  filtered.forEach((item) => {
+    const category = item.category || "Uncategorized";
+    if (!categories.has(category)) {
+      categories.set(category, {
+        category,
+        total: 0,
+        onTrack: 0,
+        needsLift: 0,
+        risk: 0,
+        confidenceSum: 0,
+        evidenceLinked: 0,
+        stale: 0,
+        lastUpdate: null,
+      });
+    }
+
+    const entry = categories.get(category);
+    entry.total += 1;
+    if (item.status === "On Track") entry.onTrack += 1;
+    if (item.status === "Needs Lift") entry.needsLift += 1;
+    entry.confidenceSum += Number(item.confidence || 0);
+    if (item.evidence && item.evidence.trim()) entry.evidenceLinked += 1;
+    if (isOutcomeAtRisk(item)) entry.risk += 1;
+
+    const daysOld = daysBetween(item.date);
+    if (daysOld === null || daysOld > 30) entry.stale += 1;
+
+    if (item.date) {
+      const updated = new Date(`${item.date}T00:00:00`);
+      if (!entry.lastUpdate || updated > entry.lastUpdate) {
+        entry.lastUpdate = updated;
+      }
+    }
+  });
+
+  return Array.from(categories.values())
+    .map((entry) => ({
+      ...entry,
+      avgConfidence: Math.round(entry.confidenceSum / Math.max(entry.total, 1)),
+      onTrackRate: Math.round((entry.onTrack / Math.max(entry.total, 1)) * 100),
+      evidenceRate: Math.round((entry.evidenceLinked / Math.max(entry.total, 1)) * 100),
+    }))
+    .sort((a, b) => {
+      if (b.risk !== a.risk) return b.risk - a.risk;
+      if (b.total !== a.total) return b.total - a.total;
+      return a.category.localeCompare(b.category);
+    });
+}
+
+function renderCategoryBalance(filtered) {
+  if (!selectors.categoryList) return;
+  const balance = buildCategoryBalance(filtered);
+  selectors.categoryList.innerHTML = "";
+
+  if (!balance.length) {
+    const item = document.createElement("li");
+    item.className = "category-item";
+    item.innerHTML =
+      "<strong>No categories in view.</strong><div class=\"category-meta muted\">Add outcomes to see portfolio balance.</div>";
+    selectors.categoryList.appendChild(item);
+    if (selectors.categorySummary) {
+      selectors.categorySummary.textContent = "No outcomes in view.";
+    }
+    return;
+  }
+
+  const riskCategories = balance.filter((entry) => entry.risk > 0).length;
+  if (selectors.categorySummary) {
+    selectors.categorySummary.textContent = `${balance.length} categories · ${riskCategories} with risk flags`;
+  }
+
+  balance.slice(0, 6).forEach((entry) => {
+    const item = document.createElement("li");
+    item.className = "category-item";
+    const lastUpdate = entry.lastUpdate
+      ? formatDate(entry.lastUpdate.toISOString().split("T")[0])
+      : "No updates logged";
+    const riskClass = entry.risk ? "tag alert" : "tag";
+    const staleClass = entry.stale ? "tag alert" : "tag";
+    item.innerHTML = `
+      <div>
+        <strong>${entry.category}</strong>
+        <div class="category-meta">
+          <span>${entry.total} outcomes</span>
+          <span>${lastUpdate}</span>
+        </div>
+      </div>
+      <div class="category-tags">
+        <span class="tag">${entry.avgConfidence}% confidence</span>
+        <span class="tag">${entry.onTrackRate}% on track</span>
+        <span class="${riskClass}">${entry.risk} at risk</span>
+        <span class="${staleClass}">${entry.stale} stale</span>
+        <span class="tag">${entry.evidenceRate}% evidence linked</span>
+      </div>
+    `;
+    selectors.categoryList.appendChild(item);
   });
 }
 

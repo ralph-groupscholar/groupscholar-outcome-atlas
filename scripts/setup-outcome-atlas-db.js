@@ -29,8 +29,10 @@ const client = new Client({
 const SCHEMA = "groupscholar_outcome_atlas";
 const TABLE = "outcomes";
 const CHECKINS_TABLE = "outcome_checkins";
+const STORYBEATS_TABLE = "outcome_storybeats";
 const tableRef = `"${SCHEMA}"."${TABLE}"`;
 const checkinsRef = `"${SCHEMA}"."${CHECKINS_TABLE}"`;
+const storybeatsRef = `"${SCHEMA}"."${STORYBEATS_TABLE}"`;
 
 const sampleOutcomes = [
   {
@@ -44,6 +46,7 @@ const sampleOutcomes = [
     date: "2026-02-02",
     evidence: "https://example.com/retention-report",
     story: "Advisor office hours tied to term readiness reduced midterm drop-offs.",
+    tags: ["retention", "advisor outreach", "first-gen"],
   },
   {
     id: randomUUID(),
@@ -56,6 +59,7 @@ const sampleOutcomes = [
     date: "2026-01-26",
     evidence: "https://example.com/placement-dashboard",
     story: "Employer cohort matchups improving, but pipeline still uneven for STEM majors.",
+    tags: ["career", "employer pipeline", "STEM"],
   },
   {
     id: randomUUID(),
@@ -68,6 +72,7 @@ const sampleOutcomes = [
     date: "2026-01-20",
     evidence: "https://example.com/grant-log",
     story: "New financial coaching cadence reduced crisis escalations.",
+    tags: ["wellbeing", "financial coaching", "emergency grants"],
   },
   {
     id: randomUUID(),
@@ -80,6 +85,7 @@ const sampleOutcomes = [
     date: "2026-01-29",
     evidence: "https://example.com/survey-highlights",
     story: "Scholars want more peer pods across campuses; listening sessions scheduled.",
+    tags: ["community", "belonging", "peer pods"],
   },
   {
     id: randomUUID(),
@@ -92,6 +98,7 @@ const sampleOutcomes = [
     date: "2026-02-05",
     evidence: "https://example.com/persistence-memo",
     story: "New onboarding checklist improved early-term connections.",
+    tags: ["retention", "onboarding", "first-year"],
   },
   {
     id: randomUUID(),
@@ -104,6 +111,7 @@ const sampleOutcomes = [
     date: "2026-01-18",
     evidence: "https://example.com/grad-school-log",
     story: "Workshops boosted interest, but completion rates need follow-up.",
+    tags: ["career", "graduate school", "workshops"],
   },
 ];
 
@@ -137,6 +145,39 @@ const sampleCheckins = [
   },
 ];
 
+const sampleStorybeats = [
+  {
+    id: randomUUID(),
+    outcome_id: sampleOutcomes[0].id,
+    audience: "Leadership",
+    headline: "Retention playbook proving out",
+    proof_point: "Stop-out risk down in regions piloting advisor nudges.",
+    next_move: "Draft slide for the February exec review.",
+    scheduled_date: "2026-02-12",
+    owner: "Program Ops",
+  },
+  {
+    id: randomUUID(),
+    outcome_id: sampleOutcomes[3].id,
+    audience: "Partners",
+    headline: "Peer pod pilots lifting belonging",
+    proof_point: "Pilot campuses reported a 0.4 bump in belonging scores.",
+    next_move: "Confirm partner talking points and scholar quotes.",
+    scheduled_date: "2026-02-10",
+    owner: "Community Team",
+  },
+  {
+    id: randomUUID(),
+    outcome_id: sampleOutcomes[1].id,
+    audience: "Leadership",
+    headline: "Placement pipeline needs April lift",
+    proof_point: "STEM internships confirming later, but employer interest remains strong.",
+    next_move: "Align employer outreach sprint with March deadlines.",
+    scheduled_date: "2026-02-17",
+    owner: "Career Success",
+  },
+];
+
 async function run() {
   await client.connect();
   await client.query(`CREATE SCHEMA IF NOT EXISTS "${SCHEMA}";`);
@@ -152,9 +193,13 @@ async function run() {
       last_updated date,
       evidence text,
       story text,
+      tags text[],
       created_at timestamptz NOT NULL DEFAULT now()
     );
   `);
+  await client.query(
+    `ALTER TABLE ${tableRef} ADD COLUMN IF NOT EXISTS tags text[];`
+  );
   await client.query(
     `CREATE INDEX IF NOT EXISTS ${TABLE}_last_updated_idx ON ${tableRef} (last_updated DESC);`
   );
@@ -176,14 +221,33 @@ async function run() {
   await client.query(
     `CREATE INDEX IF NOT EXISTS ${CHECKINS_TABLE}_outcome_id_idx ON ${checkinsRef} (outcome_id);`
   );
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS ${storybeatsRef} (
+      id uuid PRIMARY KEY,
+      outcome_id uuid NOT NULL REFERENCES ${tableRef} (id) ON DELETE CASCADE,
+      audience text NOT NULL,
+      headline text NOT NULL,
+      proof_point text,
+      next_move text,
+      scheduled_date date NOT NULL,
+      owner text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  await client.query(
+    `CREATE INDEX IF NOT EXISTS ${STORYBEATS_TABLE}_scheduled_date_idx ON ${storybeatsRef} (scheduled_date ASC);`
+  );
+  await client.query(
+    `CREATE INDEX IF NOT EXISTS ${STORYBEATS_TABLE}_outcome_id_idx ON ${storybeatsRef} (outcome_id);`
+  );
 
   for (const outcome of sampleOutcomes) {
     await client.query(
       `
       INSERT INTO ${tableRef}
-        (id, title, category, status, metric, owner, confidence, last_updated, evidence, story)
+        (id, title, category, status, metric, owner, confidence, last_updated, evidence, story, tags)
       VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       ON CONFLICT (id) DO UPDATE SET
         title = EXCLUDED.title,
         category = EXCLUDED.category,
@@ -193,7 +257,8 @@ async function run() {
         confidence = EXCLUDED.confidence,
         last_updated = EXCLUDED.last_updated,
         evidence = EXCLUDED.evidence,
-        story = EXCLUDED.story;
+        story = EXCLUDED.story,
+        tags = EXCLUDED.tags;
       `,
       [
         outcome.id,
@@ -206,6 +271,7 @@ async function run() {
         outcome.date,
         outcome.evidence,
         outcome.story,
+        outcome.tags || null,
       ]
     );
   }
@@ -237,8 +303,37 @@ async function run() {
     );
   }
 
+  for (const storybeat of sampleStorybeats) {
+    await client.query(
+      `
+      INSERT INTO ${storybeatsRef}
+        (id, outcome_id, audience, headline, proof_point, next_move, scheduled_date, owner)
+      VALUES
+        ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (id) DO UPDATE SET
+        outcome_id = EXCLUDED.outcome_id,
+        audience = EXCLUDED.audience,
+        headline = EXCLUDED.headline,
+        proof_point = EXCLUDED.proof_point,
+        next_move = EXCLUDED.next_move,
+        scheduled_date = EXCLUDED.scheduled_date,
+        owner = EXCLUDED.owner;
+      `,
+      [
+        storybeat.id,
+        storybeat.outcome_id,
+        storybeat.audience,
+        storybeat.headline,
+        storybeat.proof_point,
+        storybeat.next_move,
+        storybeat.scheduled_date,
+        storybeat.owner,
+      ]
+    );
+  }
+
   console.log(
-    `Seeded ${sampleOutcomes.length} outcomes and ${sampleCheckins.length} check-ins.`
+    `Seeded ${sampleOutcomes.length} outcomes, ${sampleCheckins.length} check-ins, and ${sampleStorybeats.length} story beats.`
   );
   await client.end();
 }
